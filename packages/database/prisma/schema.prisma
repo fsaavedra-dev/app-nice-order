@@ -1,0 +1,194 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum LoanStatus {
+  ACTIVE
+  PAID
+  DEFAULTED
+}
+
+model Role {
+  id          String          @id @default(uuid())
+  name        String          @unique
+  description String?
+  isSystem    Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  users       User[]
+  permissions RolePermission?
+}
+
+model User {
+  id            String     @id @default(uuid())
+  dui           String     @unique
+  fullName      String
+  phone         String     @unique
+  passwordHash  String
+  roleName      String     @default("CUSTOMER")
+  role          Role       @relation(fields: [roleName], references: [name], onUpdate: Cascade)
+  isBlacklisted Boolean    @default(false)
+  deletedAt     DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  orders        Order[]
+  auditLogs     AuditLog[]
+
+  @@index([dui])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model RolePermission {
+  id                  String   @id @default(uuid())
+  roleName            String   @unique
+  role                Role     @relation(fields: [roleName], references: [name], onDelete: Cascade, onUpdate: Cascade)
+  canManageOrders     Boolean  @default(true)
+  canCreateProduct    Boolean  @default(true)
+  canEditProduct      Boolean  @default(true)
+  canUpdateStock      Boolean  @default(true)
+  canManageCategories Boolean  @default(true)
+  canManageBlacklist  Boolean  @default(false)
+  canCancelOrders     Boolean  @default(true)
+  updatedAt           DateTime @updatedAt
+}
+
+model CapitalInjection {
+  id        String   @id @default(uuid())
+  amount    Decimal  @db.Decimal(10, 2)
+  notes     String?
+  actorId   String
+  createdAt DateTime @default(now())
+}
+
+model FinancialDistributionConfig {
+  id              String   @id @default(uuid())
+  companyPct      Decimal  @default(50.00) @db.Decimal(5, 2)
+  payrollPct      Decimal  @default(30.00) @db.Decimal(5, 2)
+  shareholdersPct Decimal  @default(20.00) @db.Decimal(5, 2)
+  updatedAt       DateTime @updatedAt
+}
+
+// Cierre e Inmutabilidad de Periodos Fiscales (Financial Period Snapshots)
+model FinancialPeriod {
+  id                String   @id @default(uuid())
+  periodCode        String   @unique // Ej: "2026-Q1", "2026-M03", "2026-H1", "2026-FY"
+  year              Int
+  periodType        String   // MONTHLY, QUARTERLY, SEMIANNUAL, ANNUAL
+  startDate         DateTime
+  endDate           DateTime
+  totalSales        Decimal  @db.Decimal(10, 2)
+  cogs              Decimal  @db.Decimal(10, 2) // Cost of Goods Sold (Costo directo de mercadería vendida)
+  grossProfit       Decimal  @db.Decimal(10, 2) // Ganancia Bruta (Ventas - COGS)
+  capitalInjections Decimal  @db.Decimal(10, 2)
+  debtPayments      Decimal  @db.Decimal(10, 2)
+  netGrossCash      Decimal  @db.Decimal(10, 2)
+  companyVault      Decimal  @db.Decimal(10, 2)
+  payrollVault      Decimal  @db.Decimal(10, 2)
+  shareholdersVault Decimal  @db.Decimal(10, 2)
+  isClosed          Boolean  @default(true)
+  closedAt          DateTime @default(now())
+  closedByUserId    String
+}
+
+model Lender {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  contactInfo String?
+  createdAt   DateTime @default(now())
+  loans       Loan[]
+}
+
+model Loan {
+  id             String        @id @default(uuid())
+  lenderId       String
+  lender         Lender        @relation(fields: [lenderId], references: [id])
+  principal      Decimal       @db.Decimal(10, 2)
+  remainingBal   Decimal       @db.Decimal(10, 2)
+  interestRate   Decimal       @db.Decimal(5, 2)
+  status         LoanStatus    @default(ACTIVE)
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  payments       LoanPayment[]
+}
+
+model LoanPayment {
+  id        String   @id @default(uuid())
+  loanId    String
+  loan      Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  amount    Decimal  @db.Decimal(10, 2)
+  notes     String?
+  actorId   String?
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  imageUrl  String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+}
+
+model Product {
+  id          String      @id @default(uuid())
+  title       String
+  description String?
+  totalCost   Decimal     @default(0.00) @db.Decimal(10, 2)
+  costPrice   Decimal     @default(0.00) @db.Decimal(10, 2)
+  price       Decimal     @db.Decimal(10, 2)
+  stock       Int         @default(0)
+  imageUrl    String?
+  isActive    Boolean     @default(true)
+  categoryId  String?
+  category    Category?   @relation(fields: [categoryId], references: [id])
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  orderItems  OrderItem[]
+}
+
+model Order {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  status    OrderStatus @default(PENDING)
+  total     Decimal     @db.Decimal(10, 2)
+  notes     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  items     OrderItem[]
+}
+
+model OrderItem {
+  id        String   @id @default(uuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  quantity  Int
+  price     Decimal  @db.Decimal(10, 2)
+}

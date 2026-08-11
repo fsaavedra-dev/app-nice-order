@@ -1,0 +1,8 @@
+{
+  "name": "app-nice-order",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
