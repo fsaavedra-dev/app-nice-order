@@ -1,40 +1,24 @@
-# --- Stage 1: Base & Dependencies ---
-FROM node:20-alpine AS base
+FROM node:20-alpine
+
+# Activar pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
+
 WORKDIR /app
 
-# --- Stage 2: Builder ---
-FROM base AS builder
-WORKDIR /app
+# 1. Copiar todo el monorepo
+COPY . .
 
-# Copiar manifiestos de dependencias del monorepo
-COPY package*.json pnpm-workspace.yaml* pnpm-lock.yaml* ./
-COPY packages/database/package*.json ./packages/database/
-COPY packages/shared-types/package*.json ./packages/shared-types/
-COPY apps/api/package*.json ./apps/api/
-
-# Instalar todas las dependencias
+# 2. Instalar dependencias completas del monorepo
 RUN pnpm install
 
-# Copiar el código fuente completo
-COPY packages/database ./packages/database
-COPY packages/shared-types ./packages/shared-types
-COPY apps/api ./apps/api
-
-# Generar cliente de Prisma y construir los paquetes
+# 3. Generar cliente de Prisma
 RUN pnpm --filter @nice-order/database generate
+
+# 4. Compilar la API Express
 RUN pnpm --filter @nice-order/api build
 
-# --- Stage 3: Runner ---
-FROM base AS runner
-WORKDIR /app
-
 ENV NODE_ENV=production
-
-# Copiar el monorepo preparado
-COPY --from=builder /app /app
-
 EXPOSE 3000
 
-# Comando de arranque del contenedor
+# 5. Iniciar la API
 CMD ["pnpm", "--filter", "@nice-order/api", "start"]
