@@ -8,13 +8,13 @@ FROM base AS builder
 WORKDIR /app
 
 # Copiar manifiestos de dependencias del monorepo
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY packages/database/package.json ./packages/database/
-COPY packages/shared-types/package.json ./packages/shared-types/
-COPY apps/api/package.json ./apps/api/
+COPY package*.json pnpm-workspace.yaml* pnpm-lock.yaml* ./
+COPY packages/database/package*.json ./packages/database/
+COPY packages/shared-types/package*.json ./packages/shared-types/
+COPY apps/api/package*.json ./apps/api/
 
 # Instalar todas las dependencias
-RUN pnpm install --frozen-lockfile
+RUN pnpm install
 
 # Copiar el código fuente completo
 COPY packages/database ./packages/database
@@ -31,7 +31,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copiar únicamente el artefacto construido y los node_modules compilados
+# Copiar el monorepo preparado
 COPY --from=builder /app /app
 
 EXPOSE 3000
