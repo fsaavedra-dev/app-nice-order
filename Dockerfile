@@ -8,11 +8,11 @@ WORKDIR /app
 # 2. Copiar el monorepo completo
 COPY . .
 
-# 3. Instalar dependencias
-RUN npm install
+# 3. Instalar dependencias completas (incluyendo workspaces / subpaquetes)
+RUN npm install --include-workspace-root
 
-# 4. Generar el cliente de Prisma
-RUN npx prisma generate --schema=packages/database/prisma/schema.prisma
+# 4. Generar el cliente de Prisma ejecutándolo en el paquete de la base de datos
+RUN npm --prefix packages/database run generate
 
 # 5. Compilar la API Express
 RUN npm --prefix apps/api run build
